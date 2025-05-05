@@ -22,9 +22,13 @@ class Music(commands.Cog):
             ctx.voice_client.play(source, after=after_callback)
             await ctx.send(f"🎵 Now playing: {next_title}")
         else:
-            await ctx.send("🎵 Queue is empty, leaving voice channel.")
-            await ctx.voice_client.disconnect()
-            queues.pop(ctx.guild.id, None)
+            # Leave if no audio is played in 3 min.
+            await asyncio.sleep(180)
+
+            if not ctx.voice_client.is_playing() and (ctx.guild.id not in queues or not queues[ctx.guild.id]):
+                await ctx.send("🎵 Queue is empty, leaving voice channel.")
+                await ctx.voice_client.disconnect()
+                queues.pop(ctx.guild.id, None)
 
     @commands.command()
     async def join(self, ctx):
@@ -47,11 +51,12 @@ class Music(commands.Cog):
 
         youtube_url = query if "youtube.com" in query or "youtu.be" in query else None
         if not youtube_url:
+            await ctx.send(f"🔍 Searching for: {query}...")
             url, title = search_youtube(query)
             if not url:
                 await ctx.send("❌ No results found.")
                 return
-            await ctx.send(f"✅ Found: {title}")
+            # await ctx.send(f"✅ Found: {title}")
         else:
             url = query
             title = "YouTube URL provided"
@@ -61,7 +66,14 @@ class Music(commands.Cog):
             await ctx.send(f"🎵 Added to queue: {title}")
         else:
             queues[ctx.guild.id] = []
-            source = get_audio_source(url, ctx)
+            try:
+                source = get_audio_source(url, ctx)
+            except ValueError as ve:
+                await ctx.send(f"❌ {ve}")
+                return
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+                return
 
             def after_callback(error):
                 asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop)
@@ -126,7 +138,16 @@ class Music(commands.Cog):
             await ctx.send("❌ Nothing paused.")
 
     @commands.command()
-    async def volume(self, ctx, level: int):
+    async def volume(self, ctx, level: int = None):
+        """Get the current volume"""
+        guild_id = ctx.guild.id
+
+        if level is None:
+            current_volume = volume.get(guild_id, 0.5)
+            await ctx.send(f"🔊 Current volume is set to {int(current_volume * 100)}%")
+            return
+
+
         """Sets the volume 1–100"""
         if ctx.voice_client and ctx.voice_client.source:
             if 1 <= level <= 100:
@@ -136,7 +157,7 @@ class Music(commands.Cog):
             else:
                 await ctx.send("❌ Volume must be 1–100.")
         else:
-            await ctx.send("❌ No audio to set volume for.")
+            await ctx.send("❌ No audio is currently playing.")
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

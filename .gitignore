@@ -1,1 +1,16 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# yt-dlp temp and audio files
+audio*
+*.part
+*.mp3
+*.webm
+*.m4a
+
 /audio.mp3
+/.env
+/env
+env
+.env
